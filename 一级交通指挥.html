@@ -1,0 +1,2285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>一级交通指挥 · 像素小游戏</title>
+<style>
+  :root{
+    --ink:#0a0e15;
+    --panel:#121824;
+    --line:#2a3446;
+    --cream:#f3ebd8;
+    --amber:#ffc857;
+    --green:#6ee7a8;
+    --red:#ff6b6b;
+    --muted:#8d98aa;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:radial-gradient(circle at 50% 12%,#1a2434 0%,#080b11 62%);
+    color:var(--cream);
+    font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;
+    touch-action:manipulation;
+  }
+  .app{
+    width:min(1120px,97vw);height:min(940px,97vh);
+    display:flex;flex-direction:column;gap:8px;padding:10px;
+    background:var(--panel);border:3px solid var(--line);
+    box-shadow:0 0 0 3px #04070c,0 26px 70px rgba(0,0,0,.65);
+  }
+  /* ---------------- HUD ---------------- */
+  .hud{flex:0 0 auto;background:#0e1420;border:2px solid var(--line);padding:8px 10px;display:flex;flex-direction:column;gap:7px}
+  .hud-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .brand{font-weight:800;font-size:15px;letter-spacing:3px;display:flex;align-items:center;gap:7px;white-space:nowrap}
+  .brand-txt{display:flex;flex-direction:column;line-height:1.1}
+  .brand-txt small{font-size:8px;letter-spacing:1.5px;color:var(--muted);font-weight:700;margin-top:2px}
+  .siren{width:9px;height:9px;background:var(--red);box-shadow:0 0 9px var(--red);animation:siren 1s steps(1) infinite;flex:0 0 auto}
+  @keyframes siren{0%{background:#ff5a4f;box-shadow:0 0 9px #ff5a4f}50%{background:#5aa9ff;box-shadow:0 0 9px #5aa9ff}}
+  .clock{display:flex;flex-direction:column;align-items:flex-end;gap:1px;letter-spacing:1px}
+  .clock-cn{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;white-space:nowrap}
+  .clock-cn b{color:var(--cream);font-variant-numeric:tabular-nums;font-size:13px;letter-spacing:2px}
+  .clock small{font-size:8px;letter-spacing:1.4px;color:#6c7789;font-weight:600;white-space:nowrap}
+  .hearts{display:flex;gap:4px;align-items:center}
+  .heart{width:18px;height:16px;color:var(--red);filter:drop-shadow(0 2px 0 rgba(0,0,0,.45));transition:opacity .2s}
+  .heart.off{color:#394253;opacity:.55;filter:none}
+  .hud-bottom{display:flex;align-items:center;gap:10px}
+  .stat{display:flex;align-items:baseline;gap:6px;font-size:11px;color:var(--muted);letter-spacing:1px;white-space:nowrap}
+  .stat em{font-style:normal;font-size:8px;opacity:.6;letter-spacing:.6px}
+  .stat b{font-size:17px;color:var(--cream);font-variant-numeric:tabular-nums;letter-spacing:0}
+  .stat b.rank{font-size:12px;color:var(--amber);letter-spacing:.5px}
+  .prog{flex:1;height:8px;background:#080c13;border:1px solid #232c3c;position:relative;overflow:hidden;min-width:40px}
+  .prog i{position:absolute;left:0;top:0;bottom:0;width:0%;background:linear-gradient(90deg,#3f7f5a,var(--green));box-shadow:0 0 8px rgba(110,231,168,.5);transition:width .25s}
+  .mini{
+    font:inherit;font-size:11px;letter-spacing:1px;color:var(--muted);background:#151d2b;
+    border:1px solid #2c374a;padding:5px 8px;cursor:pointer;white-space:nowrap
+  }
+  .mini span{font-size:8px;opacity:.55;letter-spacing:.5px;margin-left:2px}
+  .mini:hover{color:var(--cream);border-color:#41506a}
+  /* ---------------- 舞台 ---------------- */
+  .stage{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;position:relative}
+  .screen{
+    position:relative;line-height:0;background:#2a2e36;
+    box-shadow:0 0 0 3px #04070c,0 0 0 4px #2a3446,0 12px 30px rgba(0,0,0,.5);
+  }
+  #game{display:block;image-rendering:pixelated;image-rendering:crisp-edges;background:#2a2e36}
+  /* ---------------- 覆盖层 ---------------- */
+  .overlay{
+    position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+    padding:20px;background:rgba(4,7,12,.82);z-index:50;line-height:1.5;overflow:auto;
+  }
+  .overlay.show{display:flex}
+  .panel{
+    width:min(100%,470px);max-height:calc(100vh - 40px);overflow:auto;
+    background:#0f1622;border:2px solid #33415a;
+    box-shadow:0 0 0 2px #04070c,0 10px 0 rgba(4,7,12,.9);
+    padding:18px 20px 20px;text-align:center;
+  }
+  .kicker{font-size:11px;letter-spacing:2px;color:var(--amber);opacity:.9;margin-bottom:8px}
+  .kicker small{display:block;margin-top:3px;font-size:8px;letter-spacing:1.5px;color:#7f8b9e;font-weight:600;opacity:.9}
+  .panel h1{font-size:30px;letter-spacing:5px;margin:0 0 10px;line-height:1.15;text-shadow:0 3px 0 #000}
+  .h1-en{display:block;font-size:9px;letter-spacing:3.5px;color:var(--amber);font-weight:700;margin-top:5px;text-shadow:none}
+  .panel h2{font-size:21px;letter-spacing:2px;margin:0 0 8px;line-height:1.2}
+  .panel h2 small{display:block;font-size:9px;letter-spacing:2.5px;color:var(--muted);font-weight:600;margin-top:3px}
+  .panel p{margin:10px 0;font-size:13px;color:#cfc9bb;line-height:1.75}
+  .story{color:#e6dfcc !important}
+  .story-en{font-size:10px !important;letter-spacing:1px;color:#7f8b9e !important;line-height:1.6 !important;margin-top:2px !important;text-transform:uppercase}
+  .how{list-style:none;padding:10px 12px;margin:14px 0;background:#0a0f18;border:1px solid #263146;text-align:left}
+  .how li{font-size:12px;color:#bfc8d8;padding:3px 0;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .how li::before{content:"";width:6px;height:6px;background:var(--green);flex:0 0 6px;margin-top:5px;box-shadow:0 0 6px rgba(110,231,168,.6)}
+  .how li small{flex-basis:calc(100% - 14px);margin-left:14px;font-size:9px;letter-spacing:.4px;color:#72809a;margin-top:-1px}
+  .how b{color:var(--amber);letter-spacing:1px}
+  .btn{
+    font:inherit;font-weight:800;font-size:14px;letter-spacing:3px;
+    background:var(--amber);color:#1b1206;border:0;padding:11px 26px;cursor:pointer;
+    box-shadow:0 4px 0 #a87a20,0 6px 0 #000;margin-top:6px;
+  }
+  .btn small{display:block;font-size:8px;letter-spacing:1.8px;font-weight:700;opacity:.55;margin-top:3px}
+  .btn:hover{filter:brightness(1.06)}
+  .btn:active{transform:translateY(3px);box-shadow:0 1px 0 #a87a20,0 3px 0 #000}
+  .btn.ghost{background:#1a2334;color:var(--cream);box-shadow:0 4px 0 #0a0f18,0 6px 0 #000;border:1px solid #3a465d}
+  .tip{font-size:11px !important;color:var(--muted) !important;letter-spacing:1px;margin-top:12px !important}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:14px 0 4px;text-align:left}
+  .stats div{background:#0a0f18;border:1px solid #263146;padding:7px 9px;display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:var(--muted);letter-spacing:1px}
+  .stats em{font-style:normal;font-size:8px;opacity:.6;margin-left:3px}
+  .stats b{color:var(--cream);font-size:14px;letter-spacing:0}
+  .row-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+  /* ---------------- 底部 ---------------- */
+  .foot{flex:0 0 auto;display:flex;flex-direction:column;gap:6px}
+  .msgrow{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#0e1420;border:2px solid var(--line);padding:5px 10px;min-height:40px}
+  .msg{display:flex;flex-direction:column;gap:1px;font-size:12px;letter-spacing:1px;color:#cfd7e5;overflow:hidden;min-width:0}
+  .msg span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .msg small{font-size:9px;letter-spacing:1.2px;color:#74819a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .msg.hot{color:var(--amber)}
+  .msg.hot small{color:#b08d4c}
+  .msg.bad{color:var(--red)}
+  .msg.bad small{color:#b06a6a}
+  .keys{font-size:10px;color:#6c7789;letter-spacing:1px;white-space:nowrap}
+  .padrow{display:flex;align-items:center;justify-content:center;gap:18px}
+  .pad{display:grid;grid-template-columns:repeat(3,50px);grid-template-rows:repeat(2,40px);gap:5px}
+  .pad button{
+    font:inherit;background:#18212f;border:2px solid #33415a;color:var(--cream);
+    cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
+    box-shadow:0 3px 0 #05080d;padding:0;
+  }
+  .pad button span{font-size:17px;line-height:1}
+  .pad button small{font-size:9px;color:#9aa6b8;letter-spacing:1px;line-height:1;margin-top:2px}
+  .pad button:active,.pad button.hit{transform:translateY(2px);box-shadow:0 1px 0 #05080d;background:#22304a;border-color:var(--green)}
+  .pad button.warn{border-color:var(--red);background:#2a1a20;box-shadow:0 3px 0 #05080d,inset 0 0 12px rgba(255,80,70,.28);animation:warnpulse .7s steps(1) infinite}
+  .pad button.warn small{color:#ff9a9a}
+  @keyframes warnpulse{0%,100%{border-color:#ff6b6b}50%{border-color:#7a2b2b}}
+  .pad [data-dir="north"]{grid-column:2;grid-row:1}
+  .pad [data-dir="west"]{grid-column:1;grid-row:2}
+  .pad [data-dir="south"]{grid-column:2;grid-row:2}
+  .pad [data-dir="east"]{grid-column:3;grid-row:2}
+  .padnote{font-size:10px;color:#6c7789;letter-spacing:1px;line-height:1.8;max-width:150px}
+  .padnote b{color:#a9b6c9;font-weight:600}
+  @media (max-width:720px){
+    .brand{letter-spacing:1px;font-size:13px}
+    .clock{display:none}
+    .panel h1{font-size:24px;letter-spacing:2px}
+    .panel{padding:14px}
+    .padnote{display:none}
+    .keys{display:none}
+    .stat em{display:none}
+    .stat b.rank{font-size:11px}
+    .hud-bottom{gap:6px}
+    .mini span{display:none}
+  }
+  @media (max-height:700px){
+    .panel{padding:12px 14px}
+    .panel h1{font-size:24px;margin-bottom:6px}
+    .panel p{font-size:12px;margin:6px 0}
+    .how{padding:6px 8px;margin:8px 0}
+    .how li{font-size:11px;padding:2px 0}
+    .btn{padding:9px 22px;font-size:13px}
+    .tip{margin-top:8px !important}
+    .pad{grid-template-columns:repeat(3,44px);grid-template-rows:repeat(2,34px)}
+    .pad button span{font-size:15px}
+    .padnote{display:none}
+    .msgrow{min-height:30px;padding:4px 8px}
+  }
+  @media (max-height:560px){
+    .padrow{display:none}
+    .story-en{display:none}
+  }</style>
+</head>
+<body>
+<div class="app">
+  <header class="hud">
+    <div class="hud-top">
+      <div class="brand">
+        <span class="siren"></span>
+        <div class="brand-txt"><b>一级交通指挥</b><small>LEVEL 1 TRAFFIC CONTROL</small></div>
+      </div>
+      <div class="clock">
+        <div class="clock-cn"><b id="clock">07:58</b> · 赫伯恩高地一号十字</div>
+        <small>HEPBURN HEIGHTS · CROSSING No.1</small>
+      </div>
+      <div class="hearts" id="hearts"></div>
+    </div>
+    <div class="hud-bottom">
+      <div class="stat"><span>得分 <em>SCORE</em></span><b id="score">0</b></div>
+      <div class="stat"><span>评级 <em>RANK</em></span><b class="rank" id="rank">见习指挥</b></div>
+      <div class="prog"><i id="progFill"></i></div>
+      <button class="mini" id="btnPause">暂停 <span>PAUSE</span></button>
+      <button class="mini" id="btnMute">声音 <span>ON</span></button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="screen" id="screen">
+      <canvas id="game" width="320" height="240"></canvas>
+
+      <!-- 标题 -->
+      <section class="overlay show" id="ovTitle">
+        <div class="panel">
+          <div class="kicker">07:58 · 赫伯恩高地一号十字<small>HEPBURN HEIGHTS · CROSSING No.1</small></div>
+          <h1>一级交通指挥<span class="h1-en">LEVEL 1 TRAFFIC CONTROL</span></h1>
+          <p class="story">早高峰，路口的信号灯集体罢工。<br>四条车流堵在路口，喇叭声此起彼伏——<br>今天，只有你一名交通指挥在岗。</p>
+          <p class="story-en">Rush hour. The signals are down.<br>Four queues, one officer — you.</p>
+          <ul class="how">
+            <li><b>↑ ↓ ← →</b> 放行同向车流<small>Release traffic travelling that way</small></li>
+            <li>切换方向要等路口清空<small>Wait for the box to clear before switching</small></li>
+            <li>任一方向排满 4 辆、迟迟不放行，扣 1 颗心<small>A full lane left waiting costs a life</small></li>
+            <li>急救车等太久会扣心<small>Don't keep the ambulance waiting</small></li>
+          </ul>
+          <button class="btn" id="btnStart">上岗指挥<small>START SHIFT</small></button>
+          <p class="tip">P 暂停 PAUSE · M 静音 MUTE · 支持 WASD</p>
+        </div>
+      </section>
+
+      <!-- 暂停 -->
+      <section class="overlay" id="ovPause">
+        <div class="panel">
+          <div class="kicker">对讲机 · RADIO BREAK</div>
+          <h2>暂停中<small>PAUSED</small></h2>
+          <p>路口会等你回来。<br><span class="story-en">The crossing can wait.</span></p>
+          <div class="row-btns">
+            <button class="btn" id="btnResume">继续指挥<small>CONTINUE</small></button>
+            <button class="btn ghost" id="btnRestart">重新上岗<small>RESTART</small></button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 结算 / 晋升 -->
+      <section class="overlay" id="ovEnd">
+        <div class="panel">
+          <div class="kicker" id="endKicker">08:00 · 赫伯恩高地一号十字</div>
+          <h2 id="endTitle">路口瘫住了</h2>
+          <p id="endDesc"></p>
+          <div class="stats" id="endStats"></div>
+          <div class="row-btns">
+            <button class="btn" id="btnAgain">再来一班<small>AGAIN</small></button>
+            <button class="btn ghost" id="btnContinue" style="display:none">继续加班<small>KEEP GOING</small></button>
+          </div>
+          <p class="tip" id="endTip">按 Enter 重新开始 · PRESS ENTER TO RESTART</p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="foot">
+    <div class="msgrow">
+      <div class="msg" id="msg"><span id="msgZh">↑ ↓ ← → 放行同向车流</span><small id="msgEn">RELEASE TRAFFIC IN THAT DIRECTION</small></div>
+      <div class="keys">↑↓←→ 放行 RELEASE · P 暂停 PAUSE</div>
+    </div>
+    <div class="padrow">
+      <div class="padnote"><b>方向 = 车流去向</b><br>按 ↑ 放行向北的车</div>
+      <div class="pad">
+        <button data-dir="north"><span>↑</span><small>北 N</small></button>
+        <button data-dir="west"><span>←</span><small>西 W</small></button>
+        <button data-dir="south"><span>↓</span><small>南 S</small></button>
+        <button data-dir="east"><span>→</span><small>东 E</small></button>
+      </div>
+      <div class="padnote"><b>切换要等路口清空</b><br>心用完就下班了</div>
+    </div>
+  </footer>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* =========================================================
+   一级交通指挥
+   所有角色 / 车辆 / 植物 / 设施 = 手工逐像素点阵图（下方字符串数组）
+   没有使用任何程序化图形生成：没有随机绘制、没有几何拼脸、没有 AI 贴图。
+   代码只负责把这些手工点阵贴到屏幕上。
+   ========================================================= */
+
+const W = 320, H = 240;
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d', { alpha: false });
+ctx.imageSmoothingEnabled = false;
+const $ = (id) => document.getElementById(id);
+const screenEl = $('screen');
+
+/* ------------------------- 调色板 ------------------------- */
+const PAL = {
+  K:'#141821', // 描边
+  N:'#44578a', // 警服藏青
+  U:'#5b76b8', // 备用亮蓝
+  F:'#e9b98d', // 肤色
+  B:'#20242e', // 靴子
+  V:'#c9ec5f', // 反光背心
+  W:'#f2f6fa', // 白（帽子/高光）
+  G:'#57748a', // 深色玻璃
+  g:'#a8c8db', // 风挡玻璃
+  L:'#ffe7a6', // 车灯
+  R:'#e3534b', // 红
+  b:'#5aa9ff', // 蓝
+  T:'#6a4a30', // 树干
+  C:'#3f7f43', // 树冠
+  c:'#2f6538', // 树冠阴影
+  h:'#5d9d54', // 树冠高光
+  a:'#343a45', A:'#2b313b', d:'#3d4450', // 沥青
+  p:'#8d97a3', P:'#7b8591', q:'#a3adb9', // 人行道
+  S:'#ffffff', X:'#d9c27a', Y:'#f2c14e'
+};
+
+const CAR_PALS = {
+  red:   {B:'#e2554c', S:'#ff8d80', D:'#a63a35'},
+  blue:  {B:'#4a7fd6', S:'#8db6ff', D:'#2f549b'},
+  teal:  {B:'#3fb59a', S:'#83e6cb', D:'#2a7a68'},
+  cream: {B:'#e7dfc6', S:'#fffaea', D:'#b0a68a'},
+  violet:{B:'#9a6cd6', S:'#c8a4ff', D:'#6a4799'},
+  yellow:{B:'#f0bf4a', S:'#ffe28b', D:'#b1852a'}
+};
+const BUS_PALS = {
+  green: {B:'#3f8f70', S:'#7ac7a6', D:'#2c6a51'},
+  red:   {B:'#b94f4a', S:'#ea8a80', D:'#8a3630'},
+  blue:  {B:'#3d6c9e', S:'#7fa8d6', D:'#294d75'}
+};
+
+/* ------------------------- 点阵生成器 ------------------------- */
+function mk(rows, pal){
+  const h = rows.length, w = rows[0].length;
+  for (let i=0;i<rows.length;i++){
+    if (rows[i].length !== w) console.warn('像素图宽度不一致: 行'+i+' 宽'+rows[i].length+' 期望'+w, rows[i]);
+  }
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  for (let y=0;y<h;y++){
+    const row = rows[y];
+    for (let x=0;x<w;x++){
+      const ch = row[x];
+      if (ch === '.' || ch === ' ') continue;
+      const col = pal[ch];
+      if (!col){ console.warn('缺少颜色: '+ch+' @ '+x+','+y); continue; }
+      g.fillStyle = col;
+      g.fillRect(x,y,1,1);
+    }
+  }
+  return c;
+}
+
+/* ------------------------- 手工点阵素材 ------------------------- */
+const ART = {};
+
+function buildArt(){
+  /* 地面砖 */
+  ART.asphalt = mk([
+    'aaaaaaaaaaaaaaaa',
+    'aaAaaaaaaaAaaaaa',
+    'aaaaaaaabaaaaaaa',
+    'aaaaaaaaaaaaAaaa',
+    'aaaaAaaaaaaaaaaa',
+    'aaaaaaaaaaabaaaa',
+    'aaaabaaaaaaaaaaa',
+    'aaaaaaaaaaaaaaAa',
+    'aaaaaaaaAaaaaaaa',
+    'aaabaaaaaaaaaaab',
+    'aaaaaaaaAaaaaaaa',
+    'aaaaAaaaaaaaaaaa',
+    'aaaaaaaaaaaabaaa',
+    'aaAaaaaaaaaaaaaa',
+    'aaaaaaaaabaaaaaa',
+    'aaaaaaaaaaaaaaaa'
+  ], { a:'#343a45', A:'#2b313b', b:'#3e4653' });
+
+  ART.pavement = mk([
+    'qqqqqqqqqqqqqqqq',
+    'qppppppppppppppq',
+    'qpPppppppppppPpq',
+    'qppppppppppppppq',
+    'qppppppppppppppq',
+    'qppppppppppppppq',
+    'qppppppppppppppq',
+    'qPppppppppppppPq',
+    'qqqqqqqqqqqqqqqq',
+    'qppppppppppppppq',
+    'qpPppppppppppPpq',
+    'qppppppppppppppq',
+    'qppppppppppppppq',
+    'qppppppppppppppq',
+    'qppppppppppppppq',
+    'qPppppppppppppPq'
+  ], PAL);
+
+  ART.grass = mk([
+    'gggggggggggggggg',
+    'ggggggGggggggggg',
+    'gghggggggggggggg',
+    'gggggggggggghggg',
+    'gggggggggggggggg',
+    'gggggggggGgggggg',
+    'gggGgggggggggggg',
+    'ggggggggggggggGg',
+    'ggggghgggggggggg',
+    'gggggggggggggggg',
+    'ggGggggggggggggg',
+    'gggggggggggGgggg',
+    'gggggggggggggggg',
+    'gggggggggggghggg',
+    'gggggggGgggggggg',
+    'gggggggggggggggg'
+  ], { g:'#4a7a4b', G:'#3a663e', h:'#639a58' });
+
+  /* 急救车：朝下，16×22 */
+  ART.amb = mk([
+    '................',
+    '....KKKKKKKK....',
+    '...KKBBBBBBKK...',
+    '...KBBBBBBBBK...',
+    '...KRBBBBBBRK...',
+    '...KBBBBBBBBK...',
+    '..KKBBBBBBBBKK..',
+    '..KBBBBBBBBBBK..',
+    '..KBBBBBBBBBBK..',
+    '..KBBBRRRRBBBK..',
+    '..KBBBRRRRBBBK..',
+    '..KBBRRRRRRBBK..',
+    '..KBBBRRRRBBBK..',
+    '..KBBBRRRRBBBK..',
+    '..KBBBBBBBBBBK..',
+    '..KKBBBBBBBBKK..',
+    '...KggggggggK...',
+    '...KggggggggK...',
+    '...KBBBBBBBBK...',
+    '...KLLBBBBLLK...',
+    '...KKBBBBBBKK...',
+    '....KKKKKKKK....'
+  ], Object.assign({}, PAL, {B:'#edf1f3', S:'#ffffff', D:'#c4ccd2'}));
+
+  ART.lightA = mk([
+    'RRRbbb',
+    'RRRbbb'
+  ], {R:'#ff5a4f', b:'#5aa9ff'});
+  ART.lightB = mk([
+    'bbbRRR',
+    'bbbRRR'
+  ], {R:'#ff5a4f', b:'#5aa9ff'});
+
+  /* 交警：朝右。22×22，指挥姿态 */
+  /* 交警：正面站立。20×20，脚正好站在两条横向车道之间的空档里 */
+  /* 交警：正面站立，18×20。收窄肩宽和背心，腿和靴子分开 */
+  ART.copIdle = mk([
+    '.....KKKKKKKK.....',
+    '....KWWWWWWWWK....',
+    '....KWWWYYWWWK....',
+    '....KKKKKKKKKK....',
+    '.....KFFFFFFK.....',
+    '.....KFKFFKFK.....',
+    '.....KFFFFFFK.....',
+    '......KKFFKK......',
+    '...KKNNNNNNNNKK...',
+    '...KNNNNNNNNNNK...',
+    '...KWVVVVVVVVWK...',
+    '...KWVVVVVVVVWK...',
+    '...KNNVVVVVVNNK...',
+    '....KNNNNNNNNK....',
+    '.....KNNNNNNK.....',
+    '.....KNNKKNNK.....',
+    '.....KNNKKNNK.....',
+    '.....KBBKKBBK.....',
+    '....KKBBKKBBKK....',
+    '..................'
+  ], PAL);
+
+  /* 指向右（东）：右臂平举 */
+  ART.copRight = mk([
+    '.....KKKKKKKK.....',
+    '....KWWWWWWWWK....',
+    '....KWWWYYWWWK....',
+    '....KKKKKKKKKK....',
+    '.....KFFFFFFK.....',
+    '.....KFKFFKFK.....',
+    '.....KFFFFFFK.....',
+    '......KKFFKK......',
+    '...KKNNNNNNNNKK...',
+    '...KNNNNNNNNNNK...',
+    '...KWVVVVVVVVNNNNW',
+    '...KWVVVVVVVVNNNNW',
+    '...KNNVVVVVVNNK...',
+    '....KNNNNNNNNK....',
+    '.....KNNNNNNK.....',
+    '.....KNNKKNNK.....',
+    '.....KNNKKNNK.....',
+    '.....KBBKKBBK.....',
+    '....KKBBKKBBKK....',
+    '..................'
+  ], PAL);
+
+  /* 指向上（北）：右臂高举指挥棒 */
+  ART.copUp = mk([
+    '.....KKKKKKKK.RWR.',
+    '....KWWWWWWWWKWWW.',
+    '....KWWWYYWWWKNNN.',
+    '....KKKKKKKKKKNNN.',
+    '.....KFFFFFFK.NNN.',
+    '.....KFKFFKFK.NNN.',
+    '.....KFFFFFFK.NNN.',
+    '......KKFFKK..NNN.',
+    '...KKNNNNNNNNKNNN.',
+    '...KNNNNNNNNNNNNN.',
+    '...KWVVVVVVVVWK...',
+    '...KWVVVVVVVVWK...',
+    '...KNNVVVVVVNNK...',
+    '....KNNNNNNNNK....',
+    '.....KNNNNNNK.....',
+    '.....KNNKKNNK.....',
+    '.....KNNKKNNK.....',
+    '.....KBBKKBBK.....',
+    '....KKBBKKBBKK....',
+    '..................'
+  ], PAL);
+
+  /* 指向下（南）：右臂垂下 */
+  ART.copDown = mk([
+    '.....KKKKKKKK.....',
+    '....KWWWWWWWWK....',
+    '....KWWWYYWWWK....',
+    '....KKKKKKKKKK....',
+    '.....KFFFFFFK.....',
+    '.....KFKFFKFK.....',
+    '.....KFFFFFFK.....',
+    '......KKFFKK......',
+    '...KKNNNNNNNNKK...',
+    '...KNNNNNNNNNNK...',
+    '...KWVVVVVVVVWK...',
+    '...KWVVVVVVVVWK...',
+    '...KNNVVVVVVNNNNN.',
+    '....KNNNNNNNNKNNN.',
+    '.....KNNNNNNK.NNN.',
+    '.....KNNKKNNK.NNN.',
+    '.....KNNKKNNK.NNN.',
+    '.....KBBKKBBK.NNN.',
+    '....KKBBKKBBKKWWW.',
+    '..................'
+  ], PAL);
+
+  /* 交警脚下的影子（手工点阵） */
+  ART.copShadow = mk([
+    '..KKKKKKKKKK..',
+    '.KKKKKKKKKKKK.',
+    'KKKKKKKKKKKKKK',
+    'KKKKKKKKKKKKKK',
+    '.KKKKKKKKKKKK.',
+    '..KKKKKKKKKK..'
+  ], { K:'rgba(0,0,0,.30)' });
+
+  /* 树：18×22 */
+  ART.tree = mk([
+    '..................',
+    '......hhhhhh......',
+    '....hhCCCCCCch....',
+    '...hCCCCCCCCCch...',
+    '..hCCCCCCCCCCCch..',
+    '.hCCCCCCCCCCCCCch.',
+    '.CCCCCCCCCCCCCCcc.',
+    'CCCCCCCCCCCCCCCCcc',
+    'CCCCCCCCCCCCCCCCcc',
+    'CCCCCCCCCCCCCCCCcc',
+    '.CCCCCCCCCCCCCCcc.',
+    '.CCCCCCCCCCCCCCcc.',
+    '..CCCCCCCCCCCCcc..',
+    '...CCCCCCCCCCcc...',
+    '....CCCCCCCCcc....',
+    '.......TTTT.......',
+    '.......TTTT.......',
+    '.......TTTT.......',
+    '......TTTTTT......',
+    '..................'
+  ], PAL);
+
+  /* 灌木：14×10 */
+  ART.bush = mk([
+    '..............',
+    '....hhhh......',
+    '..hhCCCCch....',
+    '.hCCCCCCCCc...',
+    '.CCCCCCCCCc...',
+    'CCCCCCCCCCcc..',
+    '.CCCCCCCCcc...',
+    '..cccccccc....',
+    '..............',
+    '..............'
+  ], PAL);
+
+  /* 长椅：16×10 */
+  ART.bench = mk([
+    '................',
+    '..KKKKKKKKKKKK..',
+    '..KBBBBBBBBBBK..',
+    '..KBBBBBBBBBBK..',
+    '..KKKKKKKKKKKK..',
+    '..K..........K..',
+    '..K..........K..',
+    '..K..........K..',
+    '................',
+    '................'
+  ], {K:'#141821', B:'#b08a55'});
+
+  /* 花坛：16×10 */
+  ART.flower = mk([
+    '................',
+    '.KKKKKKKKKKKKKK.',
+    '.KttttttttttttK.',
+    '.KtRttYttRttttK.',
+    '.KtttttttYttttK.',
+    '.KtYttRtttttRtK.',
+    '.KttttttttttttK.',
+    '.KKKKKKKKKKKKKK.',
+    '................',
+    '................'
+  ], {K:'#2a2119', t:'#5a4632', R:'#e06a8a', Y:'#f0cf5e'});
+
+  /* 路灯：8×30 */
+  ART.lamp = mk([
+    '..KKKK..',
+    '.KWWWWK.',
+    '.KWWbbK.',
+    '..KKKK..',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '...KK...',
+    '..KKKK..',
+    '..KKKK..',
+    '.KKKKKK.',
+    '.KKKKKK.',
+    '..KKKK..',
+    '........'
+  ], PAL);
+
+  /* 井盖：12×12 */
+  ART.manhole = mk([
+    '............',
+    '...KKKKKK...',
+    '..KddddddK..',
+    '.KddddddddK.',
+    '.KddKddKddK.',
+    '.KddddddddK.',
+    '.KddKddKddK.',
+    '.KddddddddK.',
+    '.KddddddddK.',
+    '..KddddddK..',
+    '...KKKKKK...',
+    '............'
+  ], PAL);
+
+  /* 路面直行箭头：9×9，朝下 */
+  ART.arrow = mk([
+    '....W....',
+    '....W....',
+    '....W....',
+    '....W....',
+    '...WWW...',
+    '..WWWWW..',
+    '.WWWWWWW.',
+    'WWWWWWWWW',
+    '.........'
+  ], PAL);
+
+  /* 出租车顶灯：6×4 */
+  ART.taxiSign = mk([
+    'KKKKKK',
+    'KYYKYY',
+    'KYYKYY',
+    'KKKKKK'
+  ], {K:'#1a1a20', Y:'#ffd75e'});
+
+  /* 音符：5×7 */
+  ART.note = mk([
+    '...KK',
+    '...KW',
+    '...K.',
+    '.KKK.',
+    'KKKK.',
+    '.KK..',
+    '.....'
+  ], {K:'#f2f6fa', W:'#ffc857'});
+}
+
+/* =========================================================
+   街区素材：全部手工点阵
+   店铺立面由手绘 16×16 墙砖 / 窗 / 门 / 雨棚拼成
+   ========================================================= */
+const CITY = {};
+
+const TILE_WIN = [
+  'WWWWWWWWWWWWWWWW',
+  'WKKKKKKKKKKKKKKW',
+  'WKGGGGGGGGGGGGKW',
+  'WKGGggggggggGGKW',
+  'WKGGggggggggGGKW',
+  'WKGGggggggggGGKW',
+  'WKGGggggggggGGKW',
+  'WKGGGGGGGGGGGGKW',
+  'WKKKKKKKKKKKKKKW',
+  'WWWWssssssssWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW'
+];
+const TILE_LIT = [
+  'WWWWWWWWWWWWWWWW',
+  'WKKKKKKKKKKKKKKW',
+  'WKLLLLLLLLLLLLKW',
+  'WKLLLLLLLLLLLLKW',
+  'WKLLYYLLLLLLLLKW',
+  'WKLLYYLLLLLLLLKW',
+  'WKLLLLLLLLLLLLKW',
+  'WKLLLLLLLLLLLLKW',
+  'WKKKKKKKKKKKKKKW',
+  'WWWWssssssssWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW'
+];
+const TILE_WALL = [
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'dddddddddddddddd',
+  'WWWWWWWWWWWWWWWW'
+];
+const TILE_ROOF = [
+  'KKKKKKKKKKKKKKKK',
+  'kkkkkkkkkkkkkkkk',
+  'dddddddddddddddd',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW'
+];
+const TILE_DOOR = [
+  'WWWWWWWWWWWWWWWW',
+  'WWKKKKKKKKKKKKWW',
+  'WWKDDDDDDDDDDKWW',
+  'WWKDGGGGGGGGDKWW',
+  'WWKDGGGGGGGGDKWW',
+  'WWKDGGGGGGGGDKWW',
+  'WWKDGGGGGGGGDKWW',
+  'WWKDGGGGGGGGDKWW',
+  'WWKDGGGGGGGYDKWW',
+  'WWKDGGGGGGGGDKWW',
+  'WWKDGGGGGGGGDKWW',
+  'WWKDGGGGGGGGDKWW',
+  'WWKDGGGGGGGGDKWW',
+  'WWKKKKKKKKKKKKWW',
+  'WWWWssssssssWWWW',
+  'WWWWWWWWWWWWWWWW'
+];
+const TILE_SHOP = [
+  'WWWWWWWWWWWWWWWW',
+  'WKKKKKKKKKKKKKKW',
+  'WKGGGGGGGGGGGGKW',
+  'WKGGggggggggGGKW',
+  'WKGGggggggggGGKW',
+  'WKGGggggggggGGKW',
+  'WKGGggggggggGGKW',
+  'WKGGggggggggGGKW',
+  'WKGGggggggggGGKW',
+  'WKGGggggggggGGKW',
+  'WKGGggggggggGGKW',
+  'WKGGggggggggGGKW',
+  'WKGGGGGGGGGGGGKW',
+  'WKKKKKKKKKKKKKKW',
+  'WWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWW'
+];
+const TILE_AWN = [
+  'AABBAABBAABBAABB',
+  'AABBAABBAABBAABB',
+  'AABBAABBAABBAABB',
+  'AABBAABBAABBAABB',
+  'd.d.d.d.d.d.d.d.'
+];
+
+const BRICK_PAL = {
+  W:'#a35e4d', d:'#7f4438', K:'#262831', G:'#4e7089', g:'#33495c',
+  s:'#d8c9b3', L:'#f2c96b', Y:'#fff2c0', D:'#6b4530',
+  A:'#c94f48', B:'#efe3cd', k:'#3a3d47'
+};
+const TEAL_PAL = {
+  W:'#6f9890', d:'#557a74', K:'#242a31', G:'#4f7486', g:'#36505f',
+  s:'#e0d8c4', L:'#f4cf7a', Y:'#fff2c4', D:'#5b4a3a',
+  A:'#d9a03f', B:'#f3ead5', k:'#343a44'
+};
+
+function makeFacade(pal, opts){
+  const c = document.createElement('canvas');
+  c.width = 96; c.height = 62;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  const win = mk(TILE_WIN, pal), lit = mk(TILE_LIT, pal), wall = mk(TILE_WALL, pal);
+  const roof = mk(TILE_ROOF, pal), door = mk(TILE_DOOR, pal), shop = mk(TILE_SHOP, pal);
+  const awn = mk(TILE_AWN, pal);
+
+  for (let i=0;i<6;i++) g.drawImage(roof, i*16, 0);
+  for (let f=0; f<2; f++){
+    for (let i=0;i<6;i++){
+      const idx = f*6 + i;
+      const tile = opts.lit.includes(idx) ? lit : (opts.blank.includes(idx) ? wall : win);
+      g.drawImage(tile, i*16, 6 + f*16);
+    }
+  }
+  for (let i=0;i<6;i++) g.drawImage(awn, i*16, 38);
+  for (let i=0;i<6;i++){
+    g.drawImage(opts.doorCols.includes(i) ? door : shop, i*16, 43);
+  }
+  g.fillStyle = 'rgba(0,0,0,.32)';
+  g.fillRect(0, 59, 96, 3);
+  g.fillStyle = 'rgba(255,255,255,.10)';
+  g.fillRect(0, 59, 96, 1);
+  return c;
+}
+
+function buildCityArt(){
+  CITY.brick = makeFacade(BRICK_PAL, { lit:[1,4,8], blank:[0,5], doorCols:[2] });
+  CITY.teal  = makeFacade(TEAL_PAL,  { lit:[2,6,10], blank:[5,11], doorCols:[3] });
+
+  /* 花箱：16×8 */
+  CITY.planter = mk([
+    '.KKKKKKKKKKKKKK.',
+    '.KssssssssssssK.',
+    '.KsRRssYYssRRsK.',
+    '.KsRRssYYssRRsK.',
+    '.KssssssssssssK.',
+    '.KKKKKKKKKKKKKK.',
+    '................',
+    '................'
+  ], {K:'#30343d', s:'#8f7a63', R:'#d95f7a', Y:'#efcf5e'});
+
+  /* 俯视长椅：16×8 */
+  CITY.bench = mk([
+    'KKKKKKKKKKKKKKKK',
+    'KBBBBBBBBBBBBBBK',
+    'KbbbbbbbbbbbbbbK',
+    'KBBBBBBBBBBBBBBK',
+    'KbbbbbbbbbbbbbbK',
+    'KKKKKKKKKKKKKKKK',
+    '.KK..........KK.',
+    '................'
+  ], {K:'#23262e', B:'#b08a55', b:'#8a6a40'});
+
+  /* 垃圾桶：8×10 */
+  CITY.bin = mk([
+    '..KKKK..',
+    '.KggggK.',
+    '.KgGGgK.',
+    '.KgGGgK.',
+    '.KggggK.',
+    '..KKKK..',
+    '..K..K..',
+    '..K..K..',
+    '.KK..KK.',
+    '........'
+  ], {K:'#1e2a22', g:'#3f6b46', G:'#6f9e6a'});
+
+  /* 消防栓：6×9 */
+  CITY.hydrant = mk([
+    '.KKKK.',
+    '.KRRK.',
+    '.KRRK.',
+    'KKRRKK',
+    '.KRRK.',
+    '.KRRK.',
+    '.KRRK.',
+    'KKKKKK',
+    '......'
+  ], {K:'#2a1e1e', R:'#d14b3f'});
+
+  /* 树坑：16×16 */
+  CITY.treePit = mk([
+    'kkkkkkkkkkkkkkkk',
+    'kttttttttttttttk',
+    'kttttttttttttttk',
+    'kttttttttttttttk',
+    'kttttttttttttttk',
+    'kttttttttttttttk',
+    'kttttttttttttttk',
+    'kttttttttttttttk',
+    'kttttttttttttttk',
+    'kttttttttttttttk',
+    'kttttttttttttttk',
+    'kttttttttttttttk',
+    'kttttttttttttttk',
+    'kttttttttttttttk',
+    'kttttttttttttttk',
+    'kkkkkkkkkkkkkkkk'
+  ], {k:'#7d8794', t:'#4b3a2a'});
+
+  /* 街名牌：18×24 */
+  CITY.sign = mk([
+    '..KKKKKKKKKKKKKK..',
+    '..KBBBBBBBBBBBBK..',
+    '..KBWWWWWWWWWWBK..',
+    '..KBBBBBBBBBBBBK..',
+    '..KKKKKKKKKKKKKK..',
+    '.......KK.........',
+    '..KKKKKKKKKKKKKK..',
+    '..KBBBBBBBBBBBBK..',
+    '..KBWWWWWWWWWWBK..',
+    '..KBBBBBBBBBBBBK..',
+    '..KKKKKKKKKKKKKK..',
+    '.......KK.........',
+    '.......KK.........',
+    '.......KK.........',
+    '.......KK.........',
+    '.......KK.........',
+    '.......KK.........',
+    '.......KK.........',
+    '.......KK.........',
+    '.......KK.........',
+    '.......KK.........',
+    '.......KK.........',
+    '......KKKK........',
+    '.....KKKKKK.......'
+  ], {K:'#1a2430', B:'#2f5c8a', W:'#eef3e6'});
+
+  /* 空调外机：8×5 */
+  CITY.ac = mk([
+    'KKKKKKKK',
+    'KssssssK',
+    'KsddddsK',
+    'KsddddsK',
+    'KKKKKKKK'
+  ], {K:'#2b3038', s:'#9aa3ad', d:'#5d6672'});
+
+  /* 排水篦子：10×6 */
+  CITY.drain = mk([
+    'KKKKKKKKKK',
+    'KddddddddK',
+    'KdKdKdKddK',
+    'KddddddddK',
+    'KdKdKdKddK',
+    'KKKKKKKKKK'
+  ], {K:'#15181d', d:'#2a2f37'});
+}
+
+/* ------------------------- 车辆资产表（手工 3/4 视角点阵） ------------------------- */
+const VEH = {};
+
+/* 小轿车：正面（向南）、背面（向北）、侧面（向东，向西镜像） */
+const SEDAN_DOWN = [
+  '................',
+  '.....KKKKKK.....',
+  '....KBBBBBBK....',
+  '...KBBBBBBBBK...',
+  '...KBBBBBBBBK...',
+  '...KBSSSSSSBK...',
+  '...KBBBBBBBBK...',
+  '..KKBBBBBBBBKK..',
+  '..KBBBBBBBBBBK..',
+  '..KBGGGGGGGGBK..',
+  '..KBGGGGGGGGBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBSSSSSSSSBK..',
+  '..KBSSSSSSSSBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KKKKKKKKKKKK..',
+  '..KLLKKKKKKLLK..',
+  '..KLLKKKKKKLLK..',
+  '.KKKKKKKKKKKKKK.',
+  '................'
+];
+const SEDAN_UP = [
+  '................',
+  '....KKKKKKKK....',
+  '...KBBBBBBBBK...',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBSSSSSSSSBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBGGGGGGGGBK..',
+  '..KBGGGGGGGGBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBSSSSSSSSBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KKKKKKKKKKKK..',
+  '..KRRKKKKKKRRK..',
+  '..KRRKKKKKKRRK..',
+  '..KKKKKKKKKKKK..',
+  '.KKKKKKKKKKKKKK.',
+  '..KK......KK....',
+  '................'
+];
+const SEDAN_SIDE = [
+  '..........KKKKKKKKKKKK..........',
+  '.........KBBBBBBBBBBBBK.........',
+  '........KBBGGGKKGGGGGBBK........',
+  '.......KBBGGGGKKGGGGGGBBK.......',
+  '...KKKKBBBBBBBBBBBBBBBBBBKKKK...',
+  '..KSSSSSSSSSSSSSSSSSSSSSSSSSSK..',
+  '.KBBBKKKKKKBBBBBBBBBBKKKKKKBBBK.',
+  '.KRBBKTTTTKBBBBBBBBBBKTTTTKBBLK.',
+  '.KBBBKTHHTKBBBBBBBBBBKTHHTKBBBK.',
+  '.KBBBKTHHTKBBBBBBBBBBKTHHTKBBBK.',
+  '.KDDDKTTTTKDDDDDDDDDDKTTTTKDDDK.',
+  '.....KTTTTK..........KTTTTK.....',
+  '.....KTTTTK..........KTTTTK.....',
+  '......KKKK............KKKK......',
+  '................................',
+  '................................'
+];
+
+/* 公交车 */
+const BUS_DOWN = [
+  '................',
+  '....KKKKKKKK....',
+  '...KBBBBBBBBK...',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBSSSSSSSSBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBYYYYYYYYBK..',
+  '..KBYYYYYYYYBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBGGGGGGGBK..',
+  '..KBBGGGGGGGBK..',
+  '..KBGGGGGGGGBK..',
+  '..KBGGGGGGGGBK..',
+  '..KBGGGGGGGGBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBSSSSSSSSBK..',
+  '..KBBBBBBBBBBK..',
+  '..KKKKKKKKKKKK..',
+  '..KLLKKKKKKLLK..',
+  '..KLLKKKKKKLLK..',
+  '..KKKKKKKKKKKK..',
+  '.KKKKKKKKKKKKKK.',
+  '................',
+  '................',
+  '................'
+];
+const BUS_UP = [
+  '................',
+  '....KKKKKKKK....',
+  '...KBBBBBBBBK...',
+  '..KBBBBBBBBBBK..',
+  '..KBSSSSSSSSBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBGGGGGGGGBK..',
+  '..KBGGGGGGGGBK..',
+  '..KBGGGGGGGGBK..',
+  '..KBGGGGGGGGBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBSSSSSSSSBK..',
+  '..KBBBBBBBBBBK..',
+  '..KKKKKKKKKKKK..',
+  '..KRRKKKKKKRRK..',
+  '..KRRKKKKKKRRK..',
+  '..KKKKKKKKKKKK..',
+  '.KKKKKKKKKKKKKK.',
+  '................',
+  '................',
+  '................',
+  '................'
+];
+const bx = (mid) => '.' + 'K' + mid + 'K' + '.';
+const BUS_SIDE = [
+  bx('K'.repeat(36)),
+  bx('B'.repeat(36)),
+  bx('G'.repeat(36)),
+  bx('G'.repeat(36)),
+  bx('B'.repeat(36)),
+  bx('S'.repeat(36)),
+  bx('BBB' + 'KKKKKK' + 'B'.repeat(18) + 'KKKKKK' + 'BBB'),
+  bx('RBB' + 'KTTTTK' + 'B'.repeat(18) + 'KTTTTK' + 'BBL'),
+  bx('BBB' + 'KTHHTK' + 'B'.repeat(18) + 'KTHHTK' + 'BBB'),
+  bx('BBB' + 'KTHHTK' + 'B'.repeat(18) + 'KTHHTK' + 'BBB'),
+  bx('DDD' + 'KTTTTK' + 'D'.repeat(18) + 'KTTTTK' + 'DDD'),
+  '.....KTTTTK' + '.'.repeat(18) + 'KTTTTK.....',
+  '.....KTTTTK' + '.'.repeat(18) + 'KTTTTK.....',
+  '......KKKK' + '.'.repeat(20) + 'KKKK......',
+  '........................................',
+  '........................................'
+];
+
+/* 急救车 */
+const AMB_DOWN = [
+  '................',
+  '....KKKKKKKK....',
+  '...KBBBBBBBBK...',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBSSSSSSSSBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBGGGGGGGGBK..',
+  '..KBGGGGGGGGBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBRRRRBBBK..',
+  '..KBBRRRRRRBBK..',
+  '..KBBBRRRRBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBSSSSSSSSBK..',
+  '..KBBBBBBBBBBK..',
+  '..KKKKKKKKKKKK..',
+  '..KLLKKKKKKLLK..',
+  '..KLLKKKKKKLLK..',
+  '.KKKKKKKKKKKKKK.',
+  '................',
+  '................'
+];
+const AMB_UP = [
+  '................',
+  '....KKKKKKKK....',
+  '...KBBBBBBBBK...',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBSSSSSSSSBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBGGGGGGGGBK..',
+  '..KBGGGGGGGGBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KBBBRRRRBBBK..',
+  '..KBBRRRRRRBBK..',
+  '..KBBBRRRRBBBK..',
+  '..KBBBBBBBBBBK..',
+  '..KKKKKKKKKKKK..',
+  '..KRRKKKKKKRRK..',
+  '..KRRKKKKKKRRK..',
+  '.KKKKKKKKKKKKKK.',
+  '................',
+  '................',
+  '................'
+];
+const AMB_SIDE = [
+  '..................RRbbRR........',
+  '....KKKKKKKKKKKKKKKKKKKKKKKK....',
+  '...KBBBBBBBBBBBBBBBBBBBBBBBBK...',
+  '...KBBBBBBBBRRBBBBBBGGGGBBBBK...',
+  '...KBBBBBBBBRRBBBBBBGGGGBBBBK...',
+  '...KBBBBBBRRRRRRBBBBGGGGBBBBK...',
+  '...KBBBBBBRRRRRRBBBBGGGGBBBBK...',
+  '...KBBBBBBBBRRBBBBBBGGGGBBBBK...',
+  '..KRRRRRRRRRRRRRRRRRRRRRRRRRRK..',
+  '.KBBBKKKKKKBBBBBBBBBBKKKKKKBBBK.',
+  '.KRBBKTTTTKBBBBBBBBBBKTTTTKBBLK.',
+  '.KBBBKTHHTKBBBBBBBBBBKTHHTKBBBK.',
+  '.KBBBKTHHTKBBBBBBBBBBKTHHTKBBBK.',
+  '.KDDDKTTTTKDDDDDDDDDDKTTTTKDDDK.',
+  '.....KTTTTK..........KTTTTK.....',
+  '.....KTTTTK..........KTTTTK.....',
+  '......KKKK............KKKK......',
+  '................................'
+];
+
+function buildVehicles(){
+  const base = Object.assign({}, PAL, { T:'#191c22', H:'#7f8a99', r:'#8f9aa8' });
+  VEH.sedan = {};
+  for (const name in CAR_PALS){
+    const pal = Object.assign({}, base, CAR_PALS[name]);
+    VEH.sedan[name] = {
+      down: mk(SEDAN_DOWN, pal),
+      up: mk(SEDAN_UP, pal),
+      right: mk(SEDAN_SIDE, pal)
+    };
+  }
+  VEH.bus = {};
+  for (const name in BUS_PALS){
+    const pal = Object.assign({}, base, BUS_PALS[name]);
+    VEH.bus[name] = {
+      down: mk(BUS_DOWN, pal),
+      up: mk(BUS_UP, pal),
+      right: mk(BUS_SIDE, pal)
+    };
+  }
+  const ambPal = Object.assign({}, base, { B:'#edf1f3', S:'#ffffff', D:'#c4ccd2' });
+  VEH.amb = {
+    down: mk(AMB_DOWN, ambPal),
+    up: mk(AMB_UP, ambPal),
+    right: mk(AMB_SIDE, ambPal)
+  };
+}
+
+/* ------------------------- 场景常量 ------------------------- */
+const KEYS = ['north','south','west','east'];
+const DIRS = {
+  north:{ axis:'v', s:-1, lane:178, spawn:270, stopFront:158, label:'北向', en:'NORTHBOUND', rot:Math.PI,
+          stopLine:[132,158,56,2], approach:[132,156,56,84] },
+  south:{ axis:'v', s:+1, lane:142, spawn:-30, stopFront:82,  label:'南向', en:'SOUTHBOUND', rot:0,
+          stopLine:[132,80,56,2],  approach:[132,0,56,84] },
+  west: { axis:'h', s:-1, lane:102, spawn:350, stopFront:198, label:'西向', en:'WESTBOUND', rot:Math.PI/2,
+          stopLine:[198,92,2,56],  approach:[196,92,124,56] },
+  east: { axis:'h', s:+1, lane:138, spawn:-30, stopFront:122, label:'东向', en:'EASTBOUND', rot:-Math.PI/2,
+          stopLine:[120,92,2,56],  approach:[0,92,124,56] }
+};
+const COP_ROT = { north:-Math.PI/2, south:Math.PI/2, west:Math.PI, east:0 };
+const FULL_MARK = { south:[137,2], north:[173,226], east:[2,130], west:[306,94] };
+const CORE = { x0:124, y0:84, x1:196, y1:156 };
+const GAP = 4;
+const CAP = 4;
+
+const RANKS = [
+  { name:'见习指挥', en:'TRAINEE', at:0,    clock:'07:58' },
+  { name:'三级指挥', en:'LEVEL 3', at:180,  clock:'08:12' },
+  { name:'二级指挥', en:'LEVEL 2', at:420,  clock:'08:26' },
+  { name:'一级指挥', en:'LEVEL 1', at:760,  clock:'08:44' },
+  { name:'金牌指挥', en:'GOLD',    at:1200, clock:'09:05' }
+];
+const TINTS = [
+  'rgba(255,168,90,.10)',
+  'rgba(255,255,255,.02)',
+  'rgba(255,246,214,.05)',
+  'rgba(255,132,64,.10)',
+  'rgba(24,34,92,.30)'
+];
+const SPAWN_INTERVAL = [2.6, 2.15, 1.75, 1.5, 1.25];
+
+/* ------------------------- 状态 ------------------------- */
+const G = {
+  state:'title',
+  score:0, hearts:3, served:0, level:0,
+  t:0, clock:0,
+  active:null, pending:null, phase:'clear', clearT:0,
+  spawnT:2.0,
+  lanes:{ north:[], south:[], west:[], east:[] },
+  full:{ north:0, south:0, west:0, east:0 },
+  warn:{ north:false, south:false, west:false, east:false },
+  hurtCd:0,
+  fx:[], texts:[],
+  shake:0, flash:0, jamKey:null, jamT:0,
+  msg:'', msgEn:'', msgT:0,
+  seenWin:false, seenGold:false,
+  muted:false,
+  best:0
+};
+
+/* ------------------------- 音效 ------------------------- */
+let AC = null;
+function ac(){
+  if (!AC){
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ AC = null; }
+  }
+  if (AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(freq, dur, type, vol, slide){
+  if (G.muted) return;
+  const a = ac(); if (!a) return;
+  const t0 = a.currentTime;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type || 'square';
+  o.frequency.setValueAtTime(freq, t0);
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, slide), t0 + dur);
+  g.gain.setValueAtTime(vol || 0.025, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(a.destination);
+  o.start(t0); o.stop(t0 + dur + 0.02);
+}
+function sfx(kind){
+  if (G.muted) return;
+  switch(kind){
+    case 'switch': tone(620, .06, 'square', .018, 760); break;
+    case 'pass': tone(880, .05, 'triangle', .012, 1040); break;
+    case 'jam': tone(190, .30, 'sawtooth', .035, 70); break;
+    case 'rank': tone(520, .09, 'square', .02); setTimeout(()=>tone(660,.09,'square',.02),90); setTimeout(()=>tone(880,.16,'square',.02),180); break;
+    case 'over': tone(300, .18, 'sawtooth', .03, 180); setTimeout(()=>tone(180,.35,'sawtooth',.03,80),170); break;
+    case 'siren': tone(720, .22, 'sine', .022, 980); setTimeout(()=>tone(980,.22,'sine',.018,720),240); break;
+  }
+}
+
+/* -------- 环境底噪：城市低频 + 远处车流/喇叭（无背景音乐） -------- */
+let AMB = null, cityTimer = null;
+function startAmbience(){
+  if (AMB) return;
+  const a = ac(); if (!a) return;
+  const n = Math.floor(a.sampleRate * 3);
+  const buf = a.createBuffer(1, n, a.sampleRate);
+  const data = buf.getChannelData(0);
+  let last = 0;
+  for (let i=0;i<n;i++){
+    const w = Math.random()*2-1;
+    last = (last + 0.018*w) / 1.02;
+    data[i] = last * 3.4;
+  }
+  const src = a.createBufferSource();
+  src.buffer = buf; src.loop = true;
+  const lp = a.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 600; lp.Q.value = 0.4;
+  const g = a.createGain();
+  g.gain.value = G.muted ? 0 : 0.045;
+  const swell = a.createOscillator();
+  swell.frequency.value = 0.06;
+  const swellGain = a.createGain();
+  swellGain.gain.value = 0.010;
+  swell.connect(swellGain); swellGain.connect(g.gain);
+  src.connect(lp); lp.connect(g); g.connect(a.destination);
+  src.start(); swell.start();
+  AMB = { src, g, swell };
+  scheduleCity();
+}
+function scheduleCity(){
+  if (cityTimer) return;
+  cityTimer = setTimeout(() => {
+    cityTimer = null;
+    if (AMB && !G.muted){
+      const r = Math.random();
+      if (G.state === 'play' && r < 0.72) distantTraffic();
+      else if (r < 0.9) distantHorn();
+    }
+    scheduleCity();
+  }, 4200 + Math.random()*6500);
+}
+function distantTraffic(){
+  const a = ac(); if (!a || G.muted) return;
+  const n = Math.floor(a.sampleRate * 0.7);
+  const buf = a.createBuffer(1, n, a.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i=0;i<n;i++){
+    const fade = 1 - i/n;
+    d[i] = (Math.random()*2-1) * fade * 0.32;
+  }
+  const src = a.createBufferSource(); src.buffer = buf;
+  const bp = a.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 720; bp.Q.value = 0.8;
+  const g = a.createGain(); g.gain.value = 0.03;
+  src.connect(bp); bp.connect(g); g.connect(a.destination);
+  src.start();
+}
+function distantHorn(){
+  if (G.muted) return;
+  tone(330, .09, 'triangle', .008, 300);
+  setTimeout(()=>tone(300, .14, 'triangle', .007, 270), 150);
+}
+
+/* -------- 急救车循环警笛（双音“呼—哇—”），随车出现/离开淡入淡出 -------- */
+let SIREN = null, sirenOn = false;
+function ensureSiren(){
+  if (SIREN) return SIREN;
+  const a = ac(); if (!a) return null;
+  const osc = a.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.value = 760;
+  const lfo = a.createOscillator();
+  lfo.type = 'square';
+  lfo.frequency.value = 0.95;
+  const depth = a.createGain();
+  depth.gain.value = 150;
+  lfo.connect(depth); depth.connect(osc.frequency);
+  const band = a.createBiquadFilter();
+  band.type = 'bandpass'; band.frequency.value = 880; band.Q.value = 1.2;
+  const low = a.createBiquadFilter();
+  low.type = 'lowpass'; low.frequency.value = 2600;
+  const gain = a.createGain();
+  gain.gain.value = 0;
+  osc.connect(band); band.connect(low); low.connect(gain); gain.connect(a.destination);
+  osc.start(); lfo.start();
+  SIREN = { osc, lfo, depth, band, low, gain };
+  return SIREN;
+}
+function updateSiren(){
+  if (!SIREN && G.state !== 'play') return;
+  const amb = (G.state === 'play')
+    ? KEYS.map(k => G.lanes[k]).flat().find(c => c.kind === 'amb')
+    : null;
+  const want = !!amb && !G.muted && !document.hidden;
+  if (want && !SIREN) ensureSiren();
+  if (!SIREN) return;
+  const a = ac(); if (!a) return;
+  if (want){
+    const urg = Math.min(1, (amb.waitT || 0) / 10);
+    SIREN.lfo.frequency.setTargetAtTime(0.95 + urg * 0.75, a.currentTime, 0.35);
+    SIREN.depth.gain.setTargetAtTime(150 + urg * 35, a.currentTime, 0.35);
+    SIREN.gain.gain.setTargetAtTime(0.028 + urg * 0.012, a.currentTime, 0.25);
+    sirenOn = true;
+  } else if (sirenOn){
+    SIREN.gain.gain.setTargetAtTime(0, a.currentTime, 0.12);
+    sirenOn = false;
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (!SIREN || !AC) return;
+  if (document.hidden){
+    SIREN.gain.gain.setTargetAtTime(0, AC.currentTime, 0.1);
+    if (AMB) AMB.g.gain.setTargetAtTime(0, AC.currentTime, 0.1);
+  } else if (!G.muted && AMB){
+    AMB.g.gain.setTargetAtTime(0.045, AC.currentTime, 0.2);
+  }
+});
+
+/* ------------------------- 背景 ------------------------- */
+let bgCanvas = null;
+function fillTiled(g, spr, x, y, w, h){
+  g.save();
+  g.beginPath(); g.rect(x,y,w,h); g.clip();
+  for (let yy=y; yy<y+h; yy+=spr.height)
+    for (let xx=x; xx<x+w; xx+=spr.width)
+      g.drawImage(spr, xx, yy);
+  g.restore();
+}
+function drawSprAt(g, spr, x, y, rot){
+  g.save();
+  g.translate(Math.round(x), Math.round(y));
+  if (rot) g.rotate(rot);
+  g.drawImage(spr, -(spr.width >> 1), -(spr.height >> 1));
+  g.restore();
+}
+function buildBg(){
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+
+  /* 地面基底：人行道 */
+  fillTiled(g, ART.pavement, 0, 0, W, H);
+
+  /* 下行街区的公园草地 */
+  fillTiled(g, ART.grass, 0, 164, 116, 76);
+  fillTiled(g, ART.grass, 204, 164, 116, 76);
+
+  /* 沥青马路 */
+  fillTiled(g, ART.asphalt, 132, 0, 56, H);
+  fillTiled(g, ART.asphalt, 0, 92, W, 56);
+
+  /* 公园小径 */
+  fillTiled(g, ART.pavement, 64, 164, 16, 76);
+  fillTiled(g, ART.pavement, 240, 164, 16, 76);
+  g.fillStyle = 'rgba(245,246,238,.22)';
+  g.fillRect(64, 164, 2, 76); g.fillRect(78, 164, 2, 76);
+  g.fillRect(240, 164, 2, 76); g.fillRect(254, 164, 2, 76);
+
+  /* 路缘石 */
+  g.fillStyle = '#c2ccd8';
+  g.fillRect(130, 0, 2, 92);   g.fillRect(188, 0, 2, 92);
+  g.fillRect(130, 148, 2, 92); g.fillRect(188, 148, 2, 92);
+  g.fillRect(0, 90, 132, 2);   g.fillRect(188, 90, 132, 2);
+  g.fillRect(0, 148, 132, 2);  g.fillRect(188, 148, 132, 2);
+  /* 路缘阴影 */
+  g.fillStyle = 'rgba(0,0,0,.30)';
+  g.fillRect(132, 0, 2, 92);   g.fillRect(188, 0, 2, 92);
+  g.fillRect(132, 148, 2, 92); g.fillRect(188, 148, 2, 92);
+  g.fillRect(0, 92, 132, 2);   g.fillRect(188, 92, 132, 2);
+  g.fillRect(0, 148, 132, 2);  g.fillRect(188, 148, 132, 2);
+
+  /* 斑马线 */
+  g.fillStyle = 'rgba(244,246,240,.88)';
+  for (let x=134; x<186; x+=8){ g.fillRect(x, 84, 4, 8); g.fillRect(x, 148, 4, 8); }
+  for (let y=94; y<146; y+=8){ g.fillRect(124, y, 8, 4); g.fillRect(188, y, 8, 4); }
+  /* 斑马线磨损 */
+  g.fillStyle = 'rgba(52,58,69,.35)';
+  g.fillRect(150, 84, 2, 8); g.fillRect(174, 150, 3, 6);
+  g.fillRect(124, 106, 8, 1); g.fillRect(190, 126, 6, 1);
+
+  /* 停止线 */
+  g.fillStyle = 'rgba(248,249,244,.92)';
+  g.fillRect(132, 80, 56, 2);
+  g.fillRect(132, 158, 56, 2);
+  g.fillRect(120, 92, 2, 56);
+  g.fillRect(198, 92, 2, 56);
+
+  /* 中心虚线 */
+  g.fillStyle = 'rgba(240,232,196,.42)';
+  for (let y=0; y<=72; y+=16) g.fillRect(159, y, 2, 8);
+  for (let y=168; y<240; y+=16) g.fillRect(159, y, 2, 8);
+  for (let x=0; x<=112; x+=16) g.fillRect(x, 119, 8, 2);
+  for (let x=208; x<320; x+=16) g.fillRect(x, 119, 8, 2);
+
+  /* 直行箭头 */
+  drawSprAt(g, ART.arrow, 142, 46, 0);
+  drawSprAt(g, ART.arrow, 178, 196, Math.PI);
+  drawSprAt(g, ART.arrow, 72, 138, -Math.PI/2);
+  drawSprAt(g, ART.arrow, 250, 102, Math.PI/2);
+
+  /* 井盖与排水口 */
+  const holes = [[150, 24], [176, 218], [64, 112], [252, 128]];
+  for (const h of holes) g.drawImage(ART.manhole, h[0], h[1]);
+  const drains = [[134, 70], [176, 164], [58, 96], [252, 142]];
+  for (const d of drains) g.drawImage(CITY.drain, d[0], d[1]);
+
+  /* 店铺立面 */
+  g.drawImage(CITY.brick, 8, 6);
+  g.drawImage(CITY.teal, 216, 6);
+
+  /* 店前花箱与长椅 */
+  const planters = [[16, 70], [58, 70], [224, 70], [266, 70]];
+  for (const p of planters) g.drawImage(CITY.planter, p[0], p[1]);
+  g.drawImage(CITY.bench, 84, 70);
+  g.drawImage(CITY.bench, 292, 70);
+
+  /* 街名牌（路口四角） */
+  g.drawImage(CITY.sign, 112, 66);
+  g.drawImage(CITY.sign, 190, 66);
+  g.drawImage(CITY.sign, 44, 164);
+  g.drawImage(CITY.sign, 258, 164);
+
+  /* 路灯 */
+  const lamps = [[118, 30], [194, 30], [118, 196], [194, 196]];
+  for (const l of lamps) g.drawImage(ART.lamp, l[0], l[1]);
+
+  /* 行道树：树坑 + 树 */
+  const streetPits = [[116, 8], [188, 8], [116, 172], [188, 172]];
+  for (const p of streetPits){
+    g.drawImage(CITY.treePit, p[0], p[1]);
+    g.globalAlpha = 0.45;
+    g.drawImage(ART.copShadow, p[0] + 1, p[1] + 11);
+    g.globalAlpha = 1;
+    g.drawImage(ART.tree, p[0] + 1, p[1] - 4);
+  }
+
+  /* 公园里的树 */
+  const parkPits = [
+    [8, 168], [90, 176], [26, 212], [86, 220],
+    [296, 168], [214, 176], [278, 212], [218, 220]
+  ];
+  for (const p of parkPits){
+    g.drawImage(CITY.treePit, p[0], p[1]);
+    g.globalAlpha = 0.45;
+    g.drawImage(ART.copShadow, p[0] + 1, p[1] + 11);
+    g.globalAlpha = 1;
+    g.drawImage(ART.tree, p[0] + 1, p[1] - 4);
+  }
+
+  /* 公园长椅：沿人行道摆放 */
+  g.drawImage(CITY.bench, 24, 150);
+  g.drawImage(CITY.bench, 280, 150);
+
+  /* 公园花箱、垃圾桶、消防栓 */
+  g.drawImage(CITY.planter, 46, 194);
+  g.drawImage(CITY.planter, 84, 204);
+  g.drawImage(CITY.planter, 258, 194);
+  g.drawImage(CITY.planter, 220, 204);
+  g.drawImage(CITY.bin, 98, 202);
+  g.drawImage(CITY.bin, 214, 202);
+  g.drawImage(CITY.hydrant, 108, 166);
+  g.drawImage(CITY.hydrant, 206, 166);
+
+  return c;
+}
+
+/* ------------------------- 小工具 ------------------------- */
+function pos(c){
+  const d = DIRS[c.key];
+  const t = d.spawn + d.s * c.d;
+  return d.axis === 'v' ? { x:d.lane, y:t } : { x:t, y:d.lane };
+}
+function bbox(c){
+  const p = pos(c), d = DIRS[c.key];
+  if (d.axis === 'v') return { x0:p.x-8, x1:p.x+8, y0:p.y-c.half, y1:p.y+c.half };
+  return { x0:p.x-c.half, x1:p.x+c.half, y0:p.y-8, y1:p.y+8 };
+}
+function insideCore(bb){
+  return bb.x1 > CORE.x0 && bb.x0 < CORE.x1 && bb.y1 > CORE.y0 && bb.y0 < CORE.y1;
+}
+function coreClear(){
+  for (const k of KEYS){
+    for (const c of G.lanes[k]) if (insideCore(bbox(c))) return false;
+  }
+  return true;
+}
+function waitingCount(key){
+  return G.lanes[key].filter(c => c.d < c.dStop + 1).length;
+}
+function levelFor(score){
+  let lv = 0;
+  for (let i=0; i<RANKS.length; i++) if (score >= RANKS[i].at) lv = i;
+  return lv;
+}
+
+/* ------------------------- HUD ------------------------- */
+const hudCache = { score:-1, level:-1, hearts:-1, msgZh:'', msgEn:'' };
+const heartEls = [];
+const padBtns = {};
+document.querySelectorAll('.pad button').forEach(b => { padBtns[b.dataset.dir] = b; });
+function initHearts(){
+  const wrap = $('hearts');
+  wrap.innerHTML = '';
+  const svg = '<svg class="heart" viewBox="0 0 9 8" aria-hidden="true"><g fill="currentColor">' +
+    '<rect x="1" y="0" width="2" height="1"/><rect x="6" y="0" width="2" height="1"/>' +
+    '<rect x="0" y="1" width="9" height="3"/><rect x="1" y="4" width="7" height="1"/>' +
+    '<rect x="2" y="5" width="5" height="1"/><rect x="3" y="6" width="3" height="1"/>' +
+    '<rect x="4" y="7" width="1" height="1"/></g></svg>';
+  for (let i=0;i<3;i++){
+    const d = document.createElement('div');
+    d.innerHTML = svg;
+    const el = d.firstChild;
+    wrap.appendChild(el);
+    heartEls.push(el);
+  }
+}
+function defaultMsg(){
+  if (G.active) return { zh:'● 正在放行 · ' + DIRS[G.active].label + '车流', en:'GO · ' + DIRS[G.active].en };
+  if (G.pending) return { zh:'◌ 等路口清空 · 即将放行 ' + DIRS[G.pending].label, en:'CLEARING · ' + DIRS[G.pending].en + ' NEXT' };
+  return { zh:'↑ ↓ ← → 放行同向车流', en:'RELEASE TRAFFIC IN THAT DIRECTION' };
+}
+function syncHud(force){
+  if (force || hudCache.score !== G.score){
+    $('score').textContent = G.score;
+    hudCache.score = G.score;
+  }
+  if (force || hudCache.level !== G.level){
+    $('rank').textContent = RANKS[G.level].name + ' · ' + RANKS[G.level].en;
+    $('clock').textContent = RANKS[G.level].clock;
+    hudCache.level = G.level;
+  }
+  if (force || hudCache.hearts !== G.hearts){
+    heartEls.forEach((el, i) => el.classList.toggle('off', i >= G.hearts));
+    hudCache.hearts = G.hearts;
+  }
+  const cur = RANKS[G.level].at;
+  const next = RANKS[G.level+1] ? RANKS[G.level+1].at : cur + 450;
+  const pct = Math.max(0, Math.min(1, (G.score - cur) / (next - cur)));
+  $('progFill').style.width = (pct*100).toFixed(1) + '%';
+  const m = (G.msgT > 0 && G.msg) ? { zh:G.msg, en:G.msgEn } : defaultMsg();
+  if (m.zh !== hudCache.msgZh || m.en !== hudCache.msgEn){
+    $('msgZh').textContent = m.zh;
+    $('msgEn').textContent = m.en;
+    hudCache.msgZh = m.zh;
+    hudCache.msgEn = m.en;
+    const el = $('msg');
+    el.className = 'msg' + (G.msgT > 0 ? (G.hearts <= 1 ? ' bad' : ' hot') : '');
+  }
+  for (const k of KEYS){
+    const btn = padBtns[k];
+    if (btn) btn.classList.toggle('warn', waitingCount(k) >= CAP);
+  }
+}
+function setMsg(zh, en, dur){
+  G.msg = zh;
+  G.msgEn = en || '';
+  G.msgT = dur || 2;
+  syncHud();
+}
+
+/* ------------------------- 分数 / 评级 ------------------------- */
+function addScore(n){
+  G.score += n;
+  const lv = levelFor(G.score);
+  if (lv > G.level){
+    G.level = lv;
+    setMsg('★ 晋升 · ' + RANKS[lv].name + '！', 'PROMOTED · ' + RANKS[lv].en, 3);
+    G.flash = 0.28;
+    sfx('rank');
+    syncHud(true);
+    if (lv === 3 && !G.seenWin){
+      G.seenWin = true;
+      showWin('一级');
+    } else if (lv === 4 && !G.seenGold){
+      G.seenGold = true;
+      showWin('金牌');
+    }
+  }
+}
+function statHtml(){
+  return '<div><span>得分<em>SCORE</em></span><b>'+G.score+'</b></div>' +
+         '<div><span>放行<em>SERVED</em></span><b>'+G.served+'</b></div>' +
+         '<div><span>评级<em>RANK</em></span><b>'+RANKS[G.level].name+'</b></div>' +
+         '<div><span>最佳<em>BEST</em></span><b>'+G.best+'</b></div>';
+}
+function showWin(kind){
+  G.state = (kind === 'gold') ? 'gold' : 'win';
+  G.active = null;
+  G.pending = null;
+  G.phase = 'clear';
+  if (G.score > G.best){ G.best = G.score; saveBest(); }
+  $('endKicker').innerHTML = RANKS[G.level].clock + ' · 赫伯恩高地一号十字<small>HEPBURN HEIGHTS · CROSSING No.1</small>';
+  if (kind === 'gold'){
+    $('endTitle').innerHTML = '金牌指挥<small>GOLD COMMANDER</small>';
+    $('endDesc').innerHTML = '早高峰结束，城市重新流动起来。<br>调度员在频道里说：“今天这个路口，是你撑住的。”' +
+      '<br><span class="story-en">The rush hour is over. The city moves again.</span>';
+  } else {
+    $('endTitle').innerHTML = '晋升 · 一级交通指挥<small>PROMOTED · LEVEL 1</small>';
+    $('endDesc').innerHTML = '路口的车流在你手下变成了一条河。<br>对讲机里传来调度员的声音：“干得漂亮，一级指挥。”' +
+      '<br><span class="story-en">“Nice work, Level One.”</span>';
+  }
+  $('endStats').innerHTML = statHtml();
+  $('btnAgain').innerHTML = '重新上岗<small>RESTART</small>';
+  $('btnContinue').style.display = '';
+  $('btnContinue').innerHTML = '继续加班<small>KEEP GOING</small>';
+  $('endTip').textContent = '按 Enter 继续 · PRESS ENTER TO CONTINUE';
+  showOverlay('ovEnd');
+  sfx('rank');
+  syncHud(true);
+}
+function endGame(){
+  G.state = 'over';
+  G.active = null;
+  G.pending = null;
+  G.phase = 'clear';
+  if (G.score > G.best){ G.best = G.score; saveBest(); }
+  $('endKicker').innerHTML = RANKS[G.level].clock + ' · 赫伯恩高地一号十字<small>HEPBURN HEIGHTS · CROSSING No.1</small>';
+  $('endTitle').innerHTML = '路口堵死了<small>GRIDLOCK</small>';
+  $('endDesc').innerHTML = '三颗心全部用完，车流一路堵到了下个路口。<br>调度员叹了口气：“先回去复盘吧，明早再来。”' +
+    '<br><span class="story-en">Three lives gone. The queue reached the next block.</span>';
+  $('endStats').innerHTML = statHtml();
+  $('btnAgain').innerHTML = '再来一班<small>AGAIN</small>';
+  $('btnContinue').style.display = 'none';
+  $('endTip').textContent = '按 Enter 重新开始 · PRESS ENTER TO RESTART';
+  showOverlay('ovEnd');
+  sfx('over');
+  syncHud(true);
+}
+function hurt(reason, reasonEn){
+  if (G.state !== 'play') return;
+  if (G.hurtCd > 0) return;
+  G.hurtCd = 2.2;
+  G.hearts--;
+  G.shake = 0.55;
+  G.flash = 0.5;
+  if (reason) setMsg('✖ ' + reason + ' −1♥', (reasonEn || 'INCIDENT') + ' −1 LIFE', 2.4);
+  sfx('jam');
+  syncHud(true);
+  if (G.hearts <= 0) endGame();
+}
+
+/* ------------------------- 车辆逻辑 ------------------------- */
+function makeCar(key, kind){
+  const dir = DIRS[key];
+  let cruise, pal;
+  if (kind === 'bus'){
+    cruise = 42;
+    pal = ['green','red','blue'][(Math.random()*3) | 0];
+  } else if (kind === 'amb'){
+    cruise = 62; pal = 'amb';
+  } else {
+    cruise = 52;
+    pal = ['red','blue','teal','cream','violet','yellow'][(Math.random()*6) | 0];
+  }
+  const vertical = dir.axis === 'v';
+  const half = vertical ? (kind === 'bus' ? 16 : 11) : (kind === 'bus' ? 20 : 16);
+  return {
+    key, kind, pal, half,
+    view: vertical ? (dir.s > 0 ? 'down' : 'up') : 'right',
+    mirror: (!vertical && dir.s < 0),
+    d: 0, v: 0,
+    cruise: cruise * (0.93 + Math.random()*0.12),
+    dStop: dir.s * (dir.stopFront - dir.spawn) - half,
+    entered: false, scored: false,
+    waitT: 0
+  };
+}
+function spawnCar(){
+  const key = KEYS[(Math.random()*KEYS.length) | 0];
+  if (waitingCount(key) >= CAP){
+    if (!G.warn[key]){
+      G.warn[key] = true;
+      setMsg('⚠ ' + DIRS[key].label + '队伍已满，优先放行！', DIRS[key].en + ' QUEUE FULL — RELEASE IT', 1.8);
+    }
+    G.spawnT = 0.5;
+    return;
+  }
+  const r = Math.random();
+  const hasAmb = KEYS.some(k => G.lanes[k].some(c => c.kind === 'amb'));
+  let kind = 'car';
+  if (!hasAmb && G.t > 14 && r < 0.07) kind = 'amb';
+  else if (r < 0.20) kind = 'bus';
+
+  const car = makeCar(key, kind);
+  if (kind === 'amb'){
+    car.id = 'amb';
+    setMsg('⚠ 急救车接近 · 优先放行', 'AMBULANCE INBOUND — CLEAR THE WAY', 2.2);
+  }
+  G.lanes[key].push(car);
+}
+function ambTimeout(c){
+  c.waitT = 0;
+  c.cruise = Math.min(90, c.cruise * 1.08);
+  hurt('急救车等待超时', 'AMBULANCE TIMEOUT');
+}
+function served(c){
+  const pts = c.kind === 'bus' ? 20 : (c.kind === 'amb' ? 50 : 10);
+  addScore(pts);
+  G.served++;
+  const p = pos(c);
+  G.texts.push({ x:p.x, y:p.y - 14, text:'+'+pts, life:0.9,
+                 color: c.kind === 'amb' ? '#8fd3ff' : '#ffe9a3' });
+  if (c.kind === 'amb') setMsg('✓ 急救车通过 +50', 'AMBULANCE CLEARED +50', 1.6);
+  sfx('pass');
+}
+function updateLanes(dt){
+  for (const key of KEYS){
+    const lane = G.lanes[key];
+    lane.sort((a,b) => b.d - a.d);
+    const green = (G.phase === 'go' && G.active === key);
+    let ahead = null;
+
+    for (const c of lane){
+      let limit = Infinity;
+      if (!green && c.d <= c.dStop) limit = c.dStop;
+      if (ahead) limit = Math.min(limit, ahead.d - ahead.half - c.half - GAP);
+      if (limit < c.d) limit = c.d;
+
+      const dist = limit - c.d;
+      let target = 0;
+      if (limit === Infinity) target = c.cruise;
+      else if (dist > 0.5) target = Math.min(c.cruise, dist * 3);
+
+      const dv = target - c.v;
+      const a = dv > 0 ? 120 : 340;
+      c.v += Math.sign(dv) * Math.min(Math.abs(dv), a * dt);
+      if (c.v < 0.001) c.v = 0;
+      c.d += c.v * dt;
+      if (c.d > limit){ c.d = limit; c.v = 0; }
+
+      if (c.kind === 'amb'){
+        if (c.d < c.dStop + 1 && c.v < 8){
+          c.waitT += dt;
+          if (c.waitT >= 10) ambTimeout(c);
+        } else {
+          c.waitT = Math.max(0, c.waitT - dt * 2);
+        }
+      }
+
+      const bb = bbox(c);
+      if (insideCore(bb)) c.entered = true;
+      else if (c.entered && !c.scored){
+        c.scored = true;
+        served(c);
+      }
+      ahead = c;
+    }
+  }
+
+  /* 回收出场车辆 */
+  for (const key of KEYS){
+    G.lanes[key] = G.lanes[key].filter(c => {
+      const p = pos(c);
+      return p.x > -60 && p.x < W + 60 && p.y > -60 && p.y < H + 60;
+    });
+  }
+}
+
+/* ------------------------- 指令 ------------------------- */
+function press(dir){
+  if (G.state !== 'play') return;
+  if (!DIRS[dir]) return;
+  if (G.active === dir) return;
+  if (G.phase === 'clear' && G.pending === dir) return;
+
+  G.pending = dir;
+  G.active = null;
+  G.phase = 'clear';
+  G.clearT = 0;
+
+  const cp = { x:168, y:106 };
+  G.fx.push({ kind:'note', x:cp.x, y:cp.y, life:0.6 });
+  sfx('switch');
+}
+function onGreen(){
+  const n = G.lanes[G.active].filter(c => c.d < c.dStop - 1).length;
+  if (n >= 3){
+    addScore(15);
+    const L = DIRS[G.active].stopLine;
+    G.texts.push({ x:L[0]+L[2]/2, y:L[1]+L[3]/2 - 6, text:'+15', life:1.1, color:'#6ee7a8' });
+    setMsg('✓ ' + DIRS[G.active].label + '队伍疏通 +15', DIRS[G.active].en + ' QUEUE CLEARED +15', 1.8);
+  }
+}
+
+/* ------------------------- 主更新 ------------------------- */
+function baseInterval(){
+  return SPAWN_INTERVAL[Math.min(G.level, SPAWN_INTERVAL.length-1)];
+}
+function update(dt){
+  G.clock += dt;
+  if (G.state !== 'play') return;
+
+  G.t += dt;
+  if (G.msgT > 0) G.msgT -= dt;
+  G.hurtCd = Math.max(0, G.hurtCd - dt);
+  G.shake = Math.max(0, G.shake - dt * 3);
+  G.flash = Math.max(0, G.flash - dt * 2.2);
+  G.jamT = Math.max(0, G.jamT - dt);
+
+  G.spawnT -= dt;
+  if (G.spawnT <= 0){
+    G.spawnT = baseInterval() * (0.82 + Math.random() * 0.36);
+    spawnCar();
+  }
+  if (G.state !== 'play') return;
+
+  if (G.phase === 'clear'){
+    G.clearT += dt;
+    if (G.pending && G.clearT >= 0.26 && coreClear()){
+      G.active = G.pending;
+      G.pending = null;
+      G.phase = 'go';
+      onGreen();
+    }
+  }
+
+  updateLanes(dt);
+
+  /* 满员计时：一条队伍堵满 3 秒就扣心 */
+  for (const k of KEYS){
+    if (waitingCount(k) >= CAP){
+      G.full[k] += dt;
+      if (G.full[k] >= 4.5 && G.hurtCd <= 0){
+        G.full[k] = -1.5;
+        G.jamKey = k;
+        G.jamT = 0.9;
+        hurt(DIRS[k].label + '队伍堵满', DIRS[k].en + ' QUEUE JAMMED');
+      }
+    } else {
+      G.full[k] = Math.max(0, G.full[k] - dt * 2);
+      if (G.warn[k]) G.warn[k] = false;
+    }
+  }
+
+  for (const f of G.fx){ f.life -= dt; f.y -= dt * 14; }
+  G.fx = G.fx.filter(f => f.life > 0);
+  for (const t of G.texts){ t.life -= dt; t.y -= dt * 16; }
+  G.texts = G.texts.filter(t => t.life > 0);
+
+  syncHud();
+}
+
+/* ------------------------- 渲染 ------------------------- */
+const TINTS_ARR = TINTS;
+function drawStopHint(g){
+  if (G.phase === 'go' && G.active){
+    const L = DIRS[G.active].stopLine;
+    g.fillStyle = 'rgba(110,231,168,.22)';
+    g.fillRect(L[0]-2, L[1]-2, L[2]+4, L[3]+4);
+    g.fillStyle = 'rgba(110,231,168,.98)';
+    g.fillRect(L[0], L[1], L[2], L[3]);
+  }
+  if (G.phase === 'clear' && G.pending){
+    const blink = Math.sin(G.clock * 16) > 0;
+    if (blink){
+      const L = DIRS[G.pending].stopLine;
+      g.fillStyle = 'rgba(255,200,87,.85)';
+      g.fillRect(L[0], L[1], L[2], L[3]);
+    }
+  }
+}
+function drawCars(g){
+  for (const key of KEYS){
+    const lane = G.lanes[key];
+    lane.sort((a,b) => a.d - b.d);
+    for (const c of lane){
+      const p = pos(c);
+      const set = (c.kind === 'amb') ? VEH.amb
+                : (c.kind === 'bus') ? VEH.bus[c.pal]
+                : VEH.sedan[c.pal];
+      const spr = set[c.view];
+      const hw = spr.width >> 1, hh = spr.height >> 1;
+      g.save();
+      g.translate(Math.round(p.x), Math.round(p.y));
+      if (c.mirror) g.scale(-1, 1);
+      g.drawImage(spr, -hw, -hh);
+      g.restore();
+
+      if (c.kind === 'amb'){
+        const f = (Math.floor(G.clock * 6) % 2 === 0) ? ART.lightA : ART.lightB;
+        if (c.view === 'right'){
+          g.drawImage(f, Math.round(p.x) + (c.mirror ? -8 : 2), Math.round(p.y) - 9);
+        } else {
+          g.drawImage(f, Math.round(p.x) - 3, Math.round(p.y) - 9);
+        }
+      }
+      if (c.kind === 'car' && c.pal === 'yellow'){
+        const ty = Math.round(p.y) - (c.view === 'right' ? 9 : 12);
+        g.drawImage(ART.taxiSign, Math.round(p.x) - 3, ty);
+      }
+
+      if (c.kind === 'amb' && c.d < c.dStop && c.waitT > 0.5){
+        const frac = Math.min(1, c.waitT / 10);
+        g.fillStyle = 'rgba(0,0,0,.65)';
+        g.fillRect(p.x - 7, p.y - 22, 14, 3);
+        g.fillStyle = frac > 0.7 ? '#ff6b6b' : '#8fd3ff';
+        g.fillRect(p.x - 7, p.y - 22, Math.round(14 * frac), 2);
+      }
+    }
+  }
+}
+function drawCop(g){
+  const pointing = (G.phase === 'go' && G.active);
+  let spr = ART.copIdle;
+  let mirror = false;
+  if (pointing){
+    if (G.active === 'north') spr = ART.copUp;
+    else if (G.active === 'south') spr = ART.copDown;
+    else if (G.active === 'east') spr = ART.copRight;
+    else { spr = ART.copRight; mirror = true; }
+  }
+  g.drawImage(ART.copShadow, 153, 127);
+  if (mirror){
+    g.save();
+    g.translate(160, 120);
+    g.scale(-1, 1);
+    g.drawImage(spr, -9, -10);
+    g.restore();
+  } else {
+    g.drawImage(spr, 151, 110);
+  }
+}
+function drawFx(g){
+  for (const f of G.fx){
+    if (f.kind === 'note'){
+      g.globalAlpha = Math.min(1, f.life * 2);
+      g.drawImage(ART.note, Math.round(f.x), Math.round(f.y));
+      g.globalAlpha = 1;
+    }
+  }
+  for (const t of G.texts){
+    g.globalAlpha = Math.min(1, t.life * 2.2);
+    drawPixelText(g, t.text, t.x - 6, t.y, t.color, 1);
+    g.globalAlpha = 1;
+  }
+}
+function drawTint(g){
+  g.fillStyle = TINTS_ARR[G.level] || TINTS_ARR[0];
+  g.fillRect(0, 0, W, H);
+}
+function drawJamFx(g){
+  /* 满员队伍：红色呼吸警告 + 感叹号 */
+  for (const k of KEYS){
+    if (waitingCount(k) >= CAP){
+      const a = DIRS[k].approach;
+      const pulse = 0.5 + 0.5 * Math.sin(G.clock * 8);
+      g.fillStyle = 'rgba(255,80,70,' + (0.10 + 0.10 * pulse).toFixed(3) + ')';
+      g.fillRect(a[0], a[1], a[2], a[3]);
+      if (Math.sin(G.clock * 10) > -0.2){
+        const m = FULL_MARK[k];
+        drawPixelText(g, '!', m[0], m[1], '#ff6b6b', 2);
+      }
+    }
+  }
+  if (G.jamT > 0 && G.jamKey){
+    const a = DIRS[G.jamKey].approach;
+    g.fillStyle = 'rgba(255,70,70,' + (G.jamT * 0.35).toFixed(3) + ')';
+    g.fillRect(a[0], a[1], a[2], a[3]);
+  }
+  if (G.flash > 0){
+    g.fillStyle = 'rgba(255,60,60,' + (G.flash * 0.22).toFixed(3) + ')';
+    g.fillRect(0, 0, W, H);
+  }
+}
+function render(){
+  ctx.save();
+  if (G.shake > 0){
+    const m = Math.ceil(G.shake * 5);
+    ctx.translate(((Math.random()*2-1)*m)|0, ((Math.random()*2-1)*m)|0);
+  }
+  ctx.drawImage(bgCanvas, 0, 0);
+  drawStopHint(ctx);
+  drawCars(ctx);
+  drawCop(ctx);
+  drawJamFx(ctx);
+  drawTint(ctx);
+  drawFx(ctx);
+  ctx.restore();
+}
+
+/* ------------------------- 像素字 ------------------------- */
+const FONT = {
+  '0':['###','#.#','#.#','#.#','###'],
+  '1':['..#','..#','..#','..#','..#'],
+  '2':['###','..#','###','#..','###'],
+  '3':['###','..#','###','..#','###'],
+  '4':['#.#','#.#','###','..#','..#'],
+  '5':['###','#..','###','..#','###'],
+  '6':['###','#..','###','#.#','###'],
+  '7':['###','..#','..#','..#','..#'],
+  '8':['###','#.#','###','#.#','###'],
+  '9':['###','#.#','###','..#','###'],
+  '+':['...','.#.','###','.#.','...'],
+  '-':['...','...','###','...','...'],
+  '!':['.#.','.#.','.#.','...','.#.'],
+  'x':['...','#.#','.#.','#.#','...'],
+  ' ':['...','...','...','...','...']
+};
+function drawPixelText(g, str, x, y, color, scale){
+  const s = scale || 1;
+  g.fillStyle = color;
+  let cx = Math.round(x);
+  const yy = Math.round(y);
+  for (const ch of str){
+    const gl = FONT[ch];
+    if (gl){
+      for (let r=0; r<gl.length; r++){
+        const row = gl[r];
+        for (let i=0; i<row.length; i++){
+          if (row[i] === '#') g.fillRect(cx + i*s, yy + r*s, s, s);
+        }
+      }
+    }
+    cx += 4 * s;
+  }
+}
+
+/* ------------------------- 界面流程 ------------------------- */
+function saveBest(){
+  try { localStorage.setItem('l1traffic.best', String(G.best)); } catch(e){}
+}
+function loadBest(){
+  try {
+    const v = parseInt(localStorage.getItem('l1traffic.best') || '0', 10);
+    G.best = isNaN(v) ? 0 : v;
+  } catch(e){ G.best = 0; }
+}
+function hideAll(){
+  document.querySelectorAll('.overlay').forEach(el => el.classList.remove('show'));
+}
+function showOverlay(id){
+  hideAll();
+  $(id).classList.add('show');
+}
+function reset(){
+  G.score = 0; G.hearts = 3; G.served = 0; G.level = 0;
+  G.t = 0; G.clock = 0;
+  G.active = null; G.pending = null; G.phase = 'clear'; G.clearT = 0;
+  G.spawnT = 1.8;
+  G.lanes = { north:[], south:[], west:[], east:[] };
+  G.full = { north:0, south:0, west:0, east:0 };
+  G.warn = { north:false, south:false, west:false, east:false };
+  G.hurtCd = 0;
+  G.fx = []; G.texts = [];
+  G.shake = 0; G.flash = 0; G.jamKey = null; G.jamT = 0;
+  G.msg = ''; G.msgEn = ''; G.msgT = 0;
+  G.seenWin = false; G.seenGold = false;
+  syncHud(true);
+}
+function start(){
+  reset();
+  hideAll();
+  G.state = 'play';
+  setMsg('上岗！先放行一条车流', 'ON DUTY — RELEASE A LANE', 2.4);
+  ac();
+  startAmbience();
+  syncHud(true);
+}
+function togglePause(){
+  if (G.state === 'play'){
+    G.state = 'pause';
+    showOverlay('ovPause');
+  } else if (G.state === 'pause'){
+    hideAll();
+    G.state = 'play';
+  }
+}
+function toggleMute(){
+  G.muted = !G.muted;
+  $('btnMute').innerHTML = G.muted ? '静音 <span>OFF</span>' : '声音 <span>ON</span>';
+  if (!G.muted){
+    if (!AMB) startAmbience();
+    else if (AC) AMB.g.gain.setTargetAtTime(0.045, AC.currentTime, 0.12);
+    sfx('switch');
+  } else if (AMB && AC){
+    AMB.g.gain.setTargetAtTime(0, AC.currentTime, 0.08);
+  }
+  updateSiren();
+}
+
+/* ------------------------- 输入 ------------------------- */
+const KEY_DIR = {
+  arrowup:'north', arrowdown:'south', arrowleft:'west', arrowright:'east',
+  w:'north', s:'south', a:'west', d:'east'
+};
+window.addEventListener('keydown', (e) => {
+  const k = e.key.toLowerCase();
+  if (k === 'p' || k === 'escape'){
+    e.preventDefault();
+    if (G.state === 'play' || G.state === 'pause') togglePause();
+    return;
+  }
+  if (k === 'm'){ toggleMute(); return; }
+  if (KEY_DIR[k]){
+    e.preventDefault();
+    if (G.state === 'title'){ start(); return; }
+    press(KEY_DIR[k]);
+    flashPad(KEY_DIR[k]);
+    return;
+  }
+  if (k === 'enter' || k === ' '){
+    e.preventDefault();
+    if (G.state === 'title' || G.state === 'over'){ start(); }
+    else if (G.state === 'pause' || G.state === 'win' || G.state === 'gold'){
+      hideAll(); G.state = 'play';
+    }
+  }
+});
+function flashPad(dir){
+  const btn = document.querySelector('.pad button[data-dir="'+dir+'"]');
+  if (!btn) return;
+  btn.classList.add('hit');
+  setTimeout(() => btn.classList.remove('hit'), 110);
+}
+document.querySelectorAll('.pad button').forEach(btn => {
+  btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (G.state === 'title'){ start(); }
+    press(btn.dataset.dir);
+    flashPad(btn.dataset.dir);
+  });
+});
+$('btnStart').addEventListener('click', start);
+$('btnAgain').addEventListener('click', start);
+$('btnContinue').addEventListener('click', () => { hideAll(); G.state = 'play'; });
+$('btnResume').addEventListener('click', () => { hideAll(); G.state = 'play'; });
+$('btnRestart').addEventListener('click', start);
+$('btnPause').addEventListener('click', togglePause);
+$('btnMute').addEventListener('click', toggleMute);
+
+/* ------------------------- 自适应 ------------------------- */
+function fit(){
+  const stage = document.querySelector('.stage');
+  const r = stage.getBoundingClientRect();
+  const s = Math.min((r.width - 6) / W, (r.height - 6) / H);
+  const cw = Math.max(220, Math.floor(W * s));
+  const ch = Math.max(165, Math.floor(H * s));
+  screenEl.style.width = cw + 'px';
+  screenEl.style.height = ch + 'px';
+  canvas.style.width = cw + 'px';
+  canvas.style.height = ch + 'px';
+}
+window.addEventListener('resize', fit);
+
+/* ------------------------- 启动 ------------------------- */
+buildArt();
+buildCityArt();
+buildVehicles();
+bgCanvas = buildBg();
+initHearts();
+loadBest();
+fit();
+reset();
+G.state = 'title';
+syncHud(true);
+
+let last = performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+  last = now;
+  update(dt);
+  render();
+  updateSiren();
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
